@@ -1,6 +1,6 @@
 # 📄 ChatPDF-Gemini: Intelligent PDF Q&A with Conversational AI
 
-**Engage in dynamic conversations with your PDF documents!** ChatPDF-Gemini leverages the power of Google's Gemini AI (specifically `gemini-1.5-flash-latest`) and advanced RAG (Retrieval Augmented Generation) techniques to provide accurate, context-aware answers from your uploaded PDFs.
+**Engage in dynamic conversations with your PDF documents!** ChatPDF-Gemini leverages the power of Google's Gemini AI (specifically `gemini-2.0-flash`) and advanced RAG (Retrieval Augmented Generation) techniques to provide accurate, context-aware answers from your uploaded PDFs.
 
 **Live Demo:** [**https://pdf-system.streamlit.app/**](https://pdf-system.streamlit.app/)
 
@@ -14,7 +14,7 @@
     *   Robust PDF parsing using PyMuPDF.
     *   Effective text chunking strategies for optimal context retrieval.
 *   **State-of-the-Art AI:**
-    *   Utilizes Google's `gemini-1.5-flash-latest` for insightful answer generation.
+    *   Utilizes Google's `gemini-2.0-flash` for insightful answer generation.
     *   Employs Google's `models/embedding-001` for high-quality semantic embeddings.
 *   **Accurate Retrieval:**
     *   Embeddings stored and queried efficiently using ChromaDB.
@@ -41,7 +41,7 @@
     *   Optional filtering by document source is applied.
 4.  **Answer Generation with LLM:**
     *   The retrieved context chunks and the user's question are formulated into a prompt.
-    *   This prompt is sent to the Gemini LLM (`gemini-1.5-flash-latest`).
+    *   This prompt is sent to the Gemini LLM (`gemini-2.0-flash`).
     *   The LLM generates an answer based *solely* on the provided context, citing sources as instructed.
 5.  **Display:**
     *   The answer and cited sources are displayed in the chat interface.
@@ -50,7 +50,7 @@
 
 *   **Language:** Python 3.10+
 *   **Web Framework:** Streamlit
-*   **LLM & Embeddings:** Google Gemini API (`gemini-1.5-flash-latest`, `models/embedding-001`) via `langchain-google-genai`
+*   **LLM & Embeddings:** Google Gemini API (`gemini-2.0-flash`, `models/embedding-001`) via `langchain-google-genai`
 *   **Core RAG Framework:** LangChain
 *   **Vector Database:** ChromaDB
 *   **PDF Parsing:** PyMuPDF (`fitz`)
