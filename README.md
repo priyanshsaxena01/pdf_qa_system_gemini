@@ -1,97 +1,120 @@
+# 📄 ChatPDF-Gemini: Intelligent PDF Q&A with Conversational AI
 
-## Setup and Running in GitHub Codespaces
+**Engage in dynamic conversations with your PDF documents!** ChatPDF-Gemini leverages the power of Google's Gemini AI (specifically `gemini-1.5-flash-latest`) and advanced RAG (Retrieval Augmented Generation) techniques to provide accurate, context-aware answers from your uploaded PDFs.
 
-1.  **Open in Codespace:**
-    *   Navigate to your GitHub repository containing this project.
-    *   Click the green "<> Code" button.
-    *   Go to the "Codespaces" tab.
-    *   Click "Create codespace on main" (or your desired branch). This will build and open your Codespace.
+**Live Demo:** [**https://pdf-system.streamlit.app/**](https://pdf-system.streamlit.app/)
 
-2.  **Set Google API Key as a Secret (Highly Recommended):**
-    *   Once the Codespace is open, on the left sidebar, click the "Remote Explorer" icon (looks like a computer monitor or a remote connection symbol).
-    *   In the "REMOTE EXPLORER" pane that opens, find the "GitHub" section. Your Codespace should be listed.
-    *   Alternatively, open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`) and type "Codespaces: Manage User Secrets" or "Codespaces: Manage Repository Secrets".
-    *   Add a new secret:
-        *   **Name:** `GOOGLE_API_KEY`
-        *   **Value:** `your_actual_google_api_key_for_gemini`
-    *   The `app.py` is configured to automatically try and read this environment variable. If not found, it will prompt you to input it in the Streamlit sidebar.
-    *   *Note: After adding a secret, you might need to "Rebuild Container" or at least close and reopen any active terminals for the new environment variable to be picked up by all processes. A fresh terminal should have it.*
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pdf-system.streamlit.app/)
 
-3.  **Open a Terminal in Codespaces:**
-    *   The Codespace interface includes an integrated terminal (usually at the bottom). If not visible, go to "Terminal" > "New Terminal" from the top menu.
+## ✨ Features
 
-4.  **Create Virtual Environment & Install Dependencies:**
-    *   It's good practice to use a virtual environment:
-        ```bash
-        python3 -m venv .venv
-        source .venv/bin/activate
-        ```
-    *   Install the required packages:
-        ```bash
-        pip install -r requirements.txt
-        ```
+*   **Conversational Interface:** Ask multiple follow-up questions in a natural chat flow.
+*   **Multi-PDF Support:** Upload and query one or more PDF documents simultaneously.
+*   **Intelligent Document Processing:**
+    *   Robust PDF parsing using PyMuPDF.
+    *   Effective text chunking strategies for optimal context retrieval.
+*   **State-of-the-Art AI:**
+    *   Utilizes Google's `gemini-1.5-flash-latest` for insightful answer generation.
+    *   Employs Google's `models/embedding-001` for high-quality semantic embeddings.
+*   **Accurate Retrieval:**
+    *   Embeddings stored and queried efficiently using ChromaDB.
+    *   Semantic search retrieves the most relevant text chunks for your questions.
+*   **Source Citations:** Answers are accompanied by clear citations, including the source document filename and page number.
+*   **Document Filtering:** Optionally focus your Q&A on specific uploaded documents.
+*   **Persistent Chat History:** Your conversation is maintained during your session.
+*   **Secure API Key Handling:** Designed for secure API key management, especially when deployed (e.g., Streamlit Community Cloud secrets).
+*   **Easy Deployment:** Ready for deployment on platforms like Streamlit Community Cloud.
 
-5.  **Handle SQLite Version for ChromaDB (If Necessary):**
-    *   ChromaDB requires `sqlite3 >= 3.35.0`. Default Codespace images might have an older version.
-    *   **After running `pip install -r requirements.txt`**, if you encounter a `RuntimeError` about an unsupported `sqlite3` version when you first run the app:
-        1.  Ensure your virtual environment (`.venv`) is active.
-        2.  Install the `pysqlite3-binary` package:
-            ```bash
-            pip install pysqlite3-binary
-            ```
-        3.  **Apply the patch:** Open the file `/workspaces/<YOUR_REPO_NAME>/.venv/lib/python3.X/site-packages/chromadb/__init__.py` (replace `<YOUR_REPO_NAME>` and `python3.X` with your actual repo name and Python version).
-            At the **very top** of this file, add:
-            ```python
-            # START ChromaDB patch for SQLite
-            try:
-                __import__('pysqlite3')
-                import sys
-                sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-                # print("Successfully patched sqlite3 with pysqlite3-binary for ChromaDB.") # Optional: for confirmation
-            except ImportError:
-                pass # print("pysqlite3-binary not found, ChromaDB might use system's sqlite3.") # Optional
-            # END ChromaDB patch for SQLite
+## 🚀 How It Works (RAG Architecture)
 
-            # ... (rest of the original chromadb/__init__.py file starts here) ...
-            ```
-        4.  Save the `chromadb/__init__.py` file. This patch makes Python use the newer SQLite version provided by `pysqlite3-binary`.
+1.  **PDF Ingestion & Processing:**
+    *   User uploads PDF(s).
+    *   Text is extracted and intelligently split into manageable, overlapping chunks.
+    *   Metadata (filename, page number) is associated with each chunk.
+2.  **Embedding & Vector Storage:**
+    *   Each text chunk is converted into a numerical vector (embedding) using Google's embedding model.
+    *   These embeddings and their metadata are stored in a ChromaDB vector database.
+3.  **User Query & Retrieval:**
+    *   User asks a question in the chat interface.
+    *   The question is embedded using the same model.
+    *   A similarity search is performed in ChromaDB to find the most relevant text chunks (context) from the indexed PDFs.
+    *   Optional filtering by document source is applied.
+4.  **Answer Generation with LLM:**
+    *   The retrieved context chunks and the user's question are formulated into a prompt.
+    *   This prompt is sent to the Gemini LLM (`gemini-1.5-flash-latest`).
+    *   The LLM generates an answer based *solely* on the provided context, citing sources as instructed.
+5.  **Display:**
+    *   The answer and cited sources are displayed in the chat interface.
 
-6.  **Run the Streamlit Application:**
-    *   In the Codespaces terminal (with the virtual environment activated):
-        ```bash
-        streamlit run app.py
-        ```
+## 🛠️ Tech Stack
 
-7.  **Access the Application:**
-    *   Codespaces will automatically detect that a service is running on a port (Streamlit defaults to 8501).
-    *   A notification will usually pop up in the bottom-right corner: "Your application running on port 8501 is available." Click the "Open in Browser" button.
-    *   Alternatively, go to the "Ports" tab in the Codespaces interface (usually next to the Terminal tab or in the bottom panel). Find the forwarded port for your application (it will say "localhost:8501" or similar) and click the "Open in Browser" (globe) icon next to it.
+*   **Language:** Python 3.10+
+*   **Web Framework:** Streamlit
+*   **LLM & Embeddings:** Google Gemini API (`gemini-1.5-flash-latest`, `models/embedding-001`) via `langchain-google-genai`
+*   **Core RAG Framework:** LangChain
+*   **Vector Database:** ChromaDB
+*   **PDF Parsing:** PyMuPDF (`fitz`)
+*   **SQLite Handling (if needed):** `pysqlite3-binary` (includes a patch in `app.py` for compatibility in some deployment environments)
 
-## Using the Application
+## ⚙️ Local Setup & Running (e.g., on Codespaces or Locally)
 
-1.  **API Key:** If you didn't set the `GOOGLE_API_KEY` as a Codespace secret, enter it in the sidebar when prompted.
-2.  **Upload PDFs:** Use the "Upload one or more PDF files" widget in the sidebar.
-3.  **Process PDFs:** Click the "Process Uploaded PDFs" button. Wait for processing and indexing to complete. The chat history will be cleared.
-4.  **Filter (Optional):** The "Indexed Documents" list in the sidebar will show processed PDF filenames. You can select specific documents to narrow down your Q&A scope for subsequent questions.
-5.  **Chat:** Type your question about the PDF content in the chat input box at the bottom of the main area and press Enter.
-6.  **View Responses:** The system will retrieve relevant context, generate an answer using Gemini, and display the answer along with cited sources (document filename and page number) in the chat interface. Your conversation history will be maintained.
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git 
+    # Replace with your actual repository URL
+    cd YOUR_REPOSITORY_NAME
+    ```
 
-## Committing Changes from Codespaces to GitHub
+2.  **Create and Activate a Virtual Environment:**
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate  # On Linux/macOS
+    # .venv\Scripts\activate   # On Windows
+    ```
 
-1.  **Source Control Panel:** Click the Source Control icon (branching diagram) on the left sidebar in Codespaces.
-2.  **Stage Changes:** Click the `+` icon next to changed files or next to the "Changes" header to stage all.
-3.  **Commit Message:** Type a descriptive message in the input box at the top of the Source Control panel.
-4.  **Commit:** Click the checkmark icon (✓) or press `Ctrl+Enter` (`Cmd+Enter` on Mac).
-5.  **Push/Sync:** Click the "Synchronize Changes" button in the status bar (bottom of the window) or use the `...` menu in the Source Control panel to "Push".
+3.  **Install Dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *Note: `requirements.txt` includes `pysqlite3-binary` for SQLite compatibility.*
 
-## Troubleshooting in Codespaces
+4.  **Set Google API Key:**
+    *   **Recommended for Codespaces/Deployment:** Set it as an environment variable or a secret named `GOOGLE_API_KEY`. The application will try to read this.
+    *   **Local Testing:** If the environment variable isn't set, the Streamlit app will prompt you to enter it in the sidebar.
+    *   Ensure your API key is enabled for the "Vertex AI API" or "Generative Language API" in Google Cloud Console and has quota for the Gemini models.
 
-*   **Port Not Forwarding:** If the app runs but you don't see a notification, check the "Ports" tab manually.
-*   **API Key Issues:** Double-check the secret name (`GOOGLE_API_KEY`) and its value. Ensure your Google API key is valid and has the necessary permissions/quotas for Gemini (`gemini-1.5-flash-latest`) and embedding models (`models/embedding-001`).
-*   **`ModuleNotFoundError`:** Ensure dependencies are installed in your active virtual environment (`pip install -r requirements.txt`).
-*   **SQLite Error:** Follow Step 5 under "Setup and Running" if you see errors related to `sqlite3` version.
-*   **Content Filtering/Safety Settings:** Gemini models have safety filters. If responses are blocked, the app will try to indicate this. Consider rephrasing questions or checking document content.
+5.  **Run the Streamlit Application:**
+    ```bash
+    streamlit run app.py
+    ```
+    The application will typically open in your web browser at `http://localhost:8501`.
+
+## ☁️ Deployment (Streamlit Community Cloud)
+
+This application is optimized for deployment on [Streamlit Community Cloud](https://share.streamlit.io/).
+
+1.  **Push your code to a GitHub repository.** Ensure `requirements.txt` is accurate and includes `pysqlite3-binary`.
+2.  **The `app.py` includes a patch at the very beginning to use `pysqlite3-binary` for SQLite compatibility, which is crucial for ChromaDB on Streamlit Cloud.**
+3.  **Sign up/Log in to Streamlit Community Cloud** using your GitHub account.
+4.  Click **"New app"** and connect your GitHub repository.
+5.  **Configuration:**
+    *   **Repository:** Your GitHub repo.
+    *   **Branch:** e.g., `main`.
+    *   **Main file path:** `app.py`.
+    *   **Advanced Settings > Secrets:** Add your `GOOGLE_API_KEY` with its value.
+6.  Click **"Deploy!"**.
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Please feel free to:
+*   Open an issue to discuss a bug or a new feature.
+*   Submit a pull request with your improvements.
+
+## 📜 License
+
+This project is licensed under the MIT License - see the `LICENSE` file for details (if you add one).
 
 ---
 
-This README should be comprehensive and guide users effectively. Remember to replace placeholders like `<YOUR_REPO_NAME>` or `python3.X` if you're manually guiding someone through the SQLite fix.
+**Note on SQLite Version for ChromaDB:**
+ChromaDB requires `sqlite3 >= 3.35.0`. Some environments (like default Codespaces or certain deployment platforms) might have an older system SQLite. This project includes `pysqlite3-binary` in `requirements.txt` and a patch at the beginning of `app.py` to instruct Python to use this newer, bundled SQLite version. This generally resolves compatibility issues.
