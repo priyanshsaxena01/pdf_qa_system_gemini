@@ -40,9 +40,9 @@ def initialize_services(api_key, clear_existing_data=False):
         print("--- Clearing existing session data: indexed_documents and messages ---")
         st.session_state.indexed_documents = []
         st.session_state.messages = []
-    #    st.info("In-memory vector store re-initialized. Processed PDFs and chat history for the session cleared.")
+        st.info("In-memory vector store re-initialized for the session.")
     else:
-    #    st.info("In-memory vector store initialized for the session.")
+        st.info("In-memory vector store initialized for the session.")
     
     # Ensure these lists exist if they were cleared or never created
     if "indexed_documents" not in st.session_state:
