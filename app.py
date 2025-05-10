@@ -42,7 +42,7 @@ def get_current_retriever(selected_docs=None):
     return get_retriever_with_filter(st.session_state.vector_store, selected_docs)
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Chat with Your PDFs (Gemini - In-Memory) Made by Priyansh Saxena", layout="wide")
+st.set_page_config(page_title="Chat with Your PDFs (Gemini - In-Memory)", layout="wide")
 st.title("💬 Chat with Your PDFs (Powered by Gemini - In-Memory DB)")
 
 # --- API Key Input & Service Initialization ---
@@ -154,7 +154,7 @@ else:
 
 # --- Chat Interface ---
 st.header("Chat about your PDFs (Current Session)")
-
+st.header("Made by Priyansh Saxena")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
