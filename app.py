@@ -42,11 +42,8 @@ def get_current_retriever(selected_docs=None):
     return get_retriever_with_filter(st.session_state.vector_store, selected_docs)
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Chat with Your PDFs by Your Name", layout="wide") # You can update page_title too
-# --- UPDATED TITLE SECTION ---
-st.title("💬 Chat with Your PDFs")
-st.markdown("### _A Project by Priyansh Saxena_") # Replace "Priyansh Saxena" with your actual name
-st.markdown("_(Powered by Google Gemini - In-Memory DB)_")
+st.set_page_config(page_title="Chat with Your PDFs (Gemini - In-Memory) Made by Priyansh Saxena", layout="wide")
+st.title("💬 Chat with Your PDFs (Powered by Gemini - In-Memory DB)")
 
 # --- API Key Input & Service Initialization ---
 st.sidebar.header("Configuration")
