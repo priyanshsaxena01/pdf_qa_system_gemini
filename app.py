@@ -13,37 +13,27 @@ except KeyError:
     print("--- 'pysqlite3' not found in sys.modules after import, patch might not have worked as expected. ---")
 # --- END OF SQLITE PATCH ---
 
-# Now, import other libraries
 import streamlit as st
 import os
-import traceback # For printing full tracebacks
+import traceback
 from core.pdf_processor import process_pdfs
-from core.vector_store import get_vector_store, add_documents_to_store, get_retriever_with_filter, list_indexed_documents
+from core.vector_store import get_vector_store, add_documents_to_store, get_retriever_with_filter, list_indexed_documents # get_vector_store now in-memory
 from core.qa_engine import get_qa_chain, query_rag
 
 # --- Configuration ---
 UPLOAD_DIR = "uploads" 
-CHROMA_DB_PATH = "./chroma_db_v2" # Changed DB path to force a new directory
+# CHROMA_DB_PATH = "./chroma_db_v3" # No longer needed for in-memory
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-# No need to os.makedirs for CHROMA_DB_PATH here, get_vector_store will handle it
 
 # --- Helper Functions ---
-def initialize_services(api_key, force_db_recreate=False):
-    """Initializes vector store, storing it in session state."""
-    if "vector_store" not in st.session_state or \
-       force_db_recreate or \
-       st.session_state.get("current_api_key_for_store") != api_key:
-        
-        print(f"--- Initializing services. Force recreate: {force_db_recreate} ---")
-        st.session_state.vector_store = get_vector_store(
-            google_api_key=api_key, 
-            db_path=CHROMA_DB_PATH, # Pass the explicitly defined path
-            force_recreate=force_db_recreate
-        )
-        st.session_state.current_api_key_for_store = api_key
-        st.info("Vector store initialized with Google Gemini embeddings." if not force_db_recreate else "Vector store re-created.")
-    else:
-        print("--- Services already initialized, skipping. ---")
+def initialize_services(api_key): # Removed force_db_recreate
+    """Initializes IN-MEMORY vector store and other services."""
+    # For in-memory, we always create a new store when services are initialized for a session/run
+    # No need to check current_api_key_for_store for in-memory, as it's always fresh
+    print(f"--- Initializing IN-MEMORY services. ---")
+    st.session_state.vector_store = get_vector_store(google_api_key=api_key)
+    st.session_state.current_api_key_for_store = api_key # Still useful for general API key tracking
+    st.info("In-memory vector store initialized with Google Gemini embeddings.")
     
 def get_current_retriever(selected_docs=None):
     if "vector_store" not in st.session_state:
@@ -52,15 +42,15 @@ def get_current_retriever(selected_docs=None):
     return get_retriever_with_filter(st.session_state.vector_store, selected_docs)
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Chat with Your PDFs (Gemini)", layout="wide")
-st.title("💬 Chat with Your PDFs (Powered by Gemini)")
+st.set_page_config(page_title="Chat with Your PDFs (Gemini - In-Memory)", layout="wide")
+st.title("💬 Chat with Your PDFs (Powered by Gemini - In-Memory DB)")
 
 # --- API Key Input & Service Initialization ---
 st.sidebar.header("Configuration")
 google_api_key_from_secret = os.environ.get("GOOGLE_API_KEY")
 
 if google_api_key_from_secret:
-    st.sidebar.success("Google API Key loaded from Codespaces/Streamlit Secret!")
+    st.sidebar.success("Google API Key loaded from Secret!")
     google_api_key = google_api_key_from_secret
 else:
     st.sidebar.warning("Google API Key not found in Secrets.")
@@ -74,28 +64,28 @@ if not google_api_key:
     st.warning("Please provide your Google API Key to begin.")
     st.stop()
 
-# Initialize services
+# Initialize services for the session
+# In-memory store is created fresh each time services are initialized
+# This happens on first load or if API key changes
 if "services_initialized" not in st.session_state or \
    st.session_state.get("current_api_key") != google_api_key:
-    with st.spinner("Initializing services with Google API Key..."):
-        initialize_services(google_api_key, force_db_recreate=st.session_state.get("force_db_recreate_flag", False))
+    with st.spinner("Initializing services (in-memory)..."):
+        initialize_services(google_api_key) # No force_recreate needed
         st.session_state.services_initialized = True
         st.session_state.current_api_key = google_api_key
-        st.session_state.force_db_recreate_flag = False 
         if "messages" not in st.session_state:
             st.session_state.messages = []
-        if "indexed_documents" not in st.session_state: 
-            st.session_state.indexed_documents = list_indexed_documents(st.session_state.vector_store)
+        # indexed_documents will be populated after PDF processing
+        st.session_state.indexed_documents = [] 
 else:
-    # Ensure indexed_documents is populated if services were already initialized
-    if "vector_store" in st.session_state and "indexed_documents" not in st.session_state:
-        st.session_state.indexed_documents = list_indexed_documents(st.session_state.vector_store)
-    elif "indexed_documents" not in st.session_state: # Fallback if vector_store also not there somehow
-        st.session_state.indexed_documents = []
+    # Ensure these exist if services were already initialized but session state was lost (less common)
+    if "messages" not in st.session_state: st.session_state.messages = []
+    if "indexed_documents" not in st.session_state: st.session_state.indexed_documents = []
 
 
 # --- PDF Upload and Processing ---
 st.sidebar.header("Upload & Process PDFs")
+st.sidebar.info("PDFs are processed for the current session only (in-memory database).")
 uploaded_files = st.sidebar.file_uploader(
     "Upload one or more PDF files", type="pdf", accept_multiple_files=True, key="pdf_uploader"
 )
@@ -117,27 +107,27 @@ if st.sidebar.button("Process Uploaded PDFs", key="process_button"):
                     st.error(f"Error saving {uploaded_file.name}: {e}")
 
             if temp_file_paths:
-                with st.spinner("Processing PDFs... This may take a moment."):
+                with st.spinner("Processing PDFs for this session..."):
                     try:
-                        # Ensure vector store is initialized (it should be by now, but double check)
+                        # Ensure vector store is initialized (it's in-memory, so should be fresh if not yet done)
                         if "vector_store" not in st.session_state or \
                            st.session_state.get("current_api_key_for_store") != google_api_key:
-                             initialize_services(google_api_key) # force_recreate is False by default
+                             initialize_services(google_api_key)
 
                         chunks = process_pdfs(temp_file_paths)
                         if chunks:
-                            print(f"--- Attempting to add {len(chunks)} chunks to vector store in PDF processing ---")
+                            print(f"--- Attempting to add {len(chunks)} chunks to IN-MEMORY vector store ---")
                             add_documents_to_store(st.session_state.vector_store, chunks)
-                            st.success(f"Successfully processed and indexed {len(uploaded_files)} PDF(s).")
+                            st.success(f"Successfully processed and indexed {len(uploaded_files)} PDF(s) for this session.")
                             st.session_state.indexed_documents = list_indexed_documents(st.session_state.vector_store)
                             st.session_state.messages = [] 
-                            st.info("Chat history cleared as new documents were processed.")
+                            st.info("Chat history cleared as new documents were processed for this session.")
                         else:
                             st.warning("No text could be extracted or chunked from the PDFs.")
                     except Exception as e:
                         st.error(f"An error occurred during PDF processing: {e}")
-                        print(f"--- FULL TRACEBACK FOR PDF PROCESSING ERROR ---")
-                        traceback.print_exc() # Print full traceback to logs
+                        print(f"--- FULL TRACEBACK FOR PDF PROCESSING ERROR (IN-MEMORY) ---")
+                        traceback.print_exc()
                     finally:
                         for path in temp_file_paths:
                             if os.path.exists(path):
@@ -147,48 +137,41 @@ if st.sidebar.button("Process Uploaded PDFs", key="process_button"):
         st.sidebar.warning("Please upload PDF files first.")
 
 # --- Display and Select Indexed Documents ---
-st.sidebar.header("Indexed Documents")
+st.sidebar.header("Indexed Documents (Current Session)")
 if "indexed_documents" not in st.session_state:
     st.session_state.indexed_documents = []
-
-# Refresh indexed_documents list if it's empty but vector_store exists (e.g., after reset)
-if "vector_store" in st.session_state and not st.session_state.indexed_documents:
-     st.session_state.indexed_documents = list_indexed_documents(st.session_state.vector_store)
-
 
 if st.session_state.indexed_documents:
     selected_documents_for_query = st.sidebar.multiselect(
         "Filter Q&A by specific document(s):",
         options=st.session_state.indexed_documents,
         default=[], 
-        key="doc_selector_sidebar"
+        key="doc_selector_sidebar_mem"
     )
 else:
-    st.sidebar.info("No documents have been indexed yet. Upload and process PDFs.")
+    st.sidebar.info("No documents processed for this session yet.")
     selected_documents_for_query = []
 
 # --- Chat Interface ---
-st.header("Chat about your PDFs")
+st.header("Chat about your PDFs (Current Session)")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for message in st.session_state.messages:
+for i, message in enumerate(st.session_state.messages): # Use enumerate for unique keys
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant" and "sources" in message and message["sources"]:
             with st.expander("Sources", expanded=False):
-                st.text_area("", value=message["sources"], height=100, disabled=True, key=f"sources_{st.session_state.messages.index(message)}_{message['content'][:10]}") # More unique key
+                st.text_area("", value=message["sources"], height=100, disabled=True, key=f"sources_{i}_{message['content'][:10]}")
 
-if prompt := st.chat_input("Ask a question about the content of your uploaded PDFs..."):
+if prompt := st.chat_input("Ask a question about the processed PDFs..."):
     if "vector_store" not in st.session_state:
         st.error("System not ready. Please ensure API key is set and PDFs are processed before asking questions.")
         st.stop()
     
-    # Check if any documents have been indexed.
-    # This relies on st.session_state.indexed_documents being accurately populated.
     if not st.session_state.get("indexed_documents", []): 
-        st.warning("No documents appear to be indexed. Please upload and process PDF documents first.")
+        st.warning("No documents appear to be processed for this session. Please upload and process PDF documents first.")
         st.stop()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -208,7 +191,7 @@ if prompt := st.chat_input("Ask a question about the content of your uploaded PD
                 message_placeholder.markdown(full_response_content)
 
                 if sources_text:
-                    with st.expander("Sources", expanded=True):
+                    with st.expander("Sources", expanded=True): # Expand for latest
                          st.text_area("", value=sources_text, height=100, disabled=True, key=f"sources_current_{len(st.session_state.messages)}")
                 
                 st.session_state.messages.append({
@@ -217,26 +200,26 @@ if prompt := st.chat_input("Ask a question about the content of your uploaded PD
                     "sources": sources_text
                 })
             else:
-                err_msg = "Could not initialize retriever. This might happen if no PDFs are processed or there's an issue with the vector store."
+                err_msg = "Could not initialize retriever. No documents processed for this session?"
                 message_placeholder.error(err_msg)
                 st.session_state.messages.append({"role": "assistant", "content": err_msg, "sources": ""})
         except Exception as e:
             err_msg = f"An error occurred: {e}"
             message_placeholder.error(err_msg)
-            print(f"--- FULL TRACEBACK FOR RAG QUERY ERROR ---")
+            print(f"--- FULL TRACEBACK FOR RAG QUERY ERROR (IN-MEMORY) ---")
             traceback.print_exc()
             st.session_state.messages.append({"role": "assistant", "content": err_msg, "sources": ""})
 
 # --- Admin / DB Reset (Optional) ---
 st.sidebar.markdown("---")
-if st.sidebar.button("⚠️ Reset Document Index (Deletes DB)", key="reset_db_button"):
+if st.sidebar.button("⚠️ Reset Session Data (Clears In-Memory DB & Chat)", key="reset_session_button"):
     if google_api_key: 
-        with st.spinner("Resetting document index..."):
-            # No need for force_db_recreate_flag, just call directly
-            initialize_services(google_api_key, force_db_recreate=True) 
+        with st.spinner("Resetting session data..."):
+            # Re-initialize services, which creates a new in-memory DB
+            initialize_services(google_api_key) 
             st.session_state.indexed_documents = [] 
             st.session_state.messages = [] 
-        st.sidebar.success("Document index and chat history have been reset.")
+        st.sidebar.success("Session data (in-memory DB, processed PDFs, chat) has been reset.")
         st.rerun()
     else:
         st.sidebar.error("Please provide Google API key before resetting.")
