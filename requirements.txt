@@ -5,3 +5,4 @@ langchain-google-genai
 pymupdf
 chromadb
 google-generativeai
+pysqlite3-binary
