@@ -1,3 +1,19 @@
+# app.py
+# --- START OF SQLITE PATCH ---
+# This MUST be the very first thing in your app.py
+import sys
+try:
+    print("--- Attempting to patch sqlite3 with pysqlite3-binary ---")
+    __import__('pysqlite3')
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    print("--- Successfully patched sqlite3 with pysqlite3-binary for Streamlit Cloud ---")
+except ImportError:
+    print("--- pysqlite3-binary not found or import error, using system sqlite3 ---")
+except KeyError:
+    print("--- 'pysqlite3' not found in sys.modules after import, patch might not have worked as expected. ---")
+# --- END OF SQLITE PATCH ---
+
+
 import streamlit as st
 import os
 from core.pdf_processor import process_pdfs
