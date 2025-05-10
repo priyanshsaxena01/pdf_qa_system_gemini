@@ -40,9 +40,9 @@ def initialize_services(api_key, clear_existing_data=False):
         print("--- Clearing existing session data: indexed_documents and messages ---")
         st.session_state.indexed_documents = []
         st.session_state.messages = []
-        st.info("In-memory vector store re-initialized. Processed PDFs and chat history for the session cleared.")
+    #    st.info("In-memory vector store re-initialized. Processed PDFs and chat history for the session cleared.")
     else:
-        st.info("In-memory vector store initialized for the session.")
+    #    st.info("In-memory vector store initialized for the session.")
     
     # Ensure these lists exist if they were cleared or never created
     if "indexed_documents" not in st.session_state:
@@ -101,7 +101,7 @@ else:
 
 # --- PDF Upload and Processing ---
 st.sidebar.header("Upload & Process PDFs")
-st.sidebar.info("PDFs are processed for the current session only (in-memory database).")
+st.sidebar.info("PDFs are processed for the current session (in-memory database).")
 uploaded_files = st.sidebar.file_uploader(
     "Upload one or more PDF files", type="pdf", accept_multiple_files=True, key="pdf_uploader"
 )
@@ -155,7 +155,7 @@ if st.sidebar.button("Process Uploaded PDFs", key="process_button"):
         st.sidebar.warning("Please upload PDF files first.")
 
 # --- Display and Select Indexed Documents ---
-st.sidebar.header("Indexed Documents (Current Session)")
+st.sidebar.header("Indexed Documents")
 # Ensure indexed_documents list is available in session_state
 current_indexed_docs = st.session_state.get("indexed_documents", [])
 print(f"--- Displaying Indexed Documents. Current list from session_state: {current_indexed_docs} ---")
@@ -173,8 +173,7 @@ else:
     selected_documents_for_query = []
 
 # --- Chat Interface ---
-st.header("Chat about your PDFs (Current Session)")
-st.header("Made by Priyansh Saxena")
+st.header("Chat about your PDFs")
 current_messages = st.session_state.get("messages", [])
 for i, message in enumerate(current_messages):
     with st.chat_message(message["role"]):
