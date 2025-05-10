@@ -1,6 +1,6 @@
 # app.py
 # --- START OF SQLITE PATCH ---
-# This MUST be the very first thing in your app.py, before ANY other imports
+# (Keep your SQLite patch here as the absolute first thing)
 import sys
 try:
     print("--- Attempting to patch sqlite3 with pysqlite3-binary ---")
@@ -17,33 +17,51 @@ import streamlit as st
 import os
 import traceback
 from core.pdf_processor import process_pdfs
-from core.vector_store import get_vector_store, add_documents_to_store, get_retriever_with_filter, list_indexed_documents # get_vector_store now in-memory
+from core.vector_store import get_vector_store, add_documents_to_store, get_retriever_with_filter, list_indexed_documents
 from core.qa_engine import get_qa_chain, query_rag
 
 # --- Configuration ---
 UPLOAD_DIR = "uploads" 
-# CHROMA_DB_PATH = "./chroma_db_v3" # No longer needed for in-memory
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # --- Helper Functions ---
-def initialize_services(api_key): # Removed force_db_recreate
-    """Initializes IN-MEMORY vector store and other services."""
-    # For in-memory, we always create a new store when services are initialized for a session/run
-    # No need to check current_api_key_for_store for in-memory, as it's always fresh
-    print(f"--- Initializing IN-MEMORY services. ---")
+def initialize_services(api_key, clear_existing_data=False):
+    """
+    Initializes IN-MEMORY vector store and other services.
+    If clear_existing_data is True, it also clears session state related to docs and chat.
+    """
+    print(f"--- Initializing IN-MEMORY services. Clear existing data: {clear_existing_data} ---")
+    
+    # Always create a new in-memory vector store instance
     st.session_state.vector_store = get_vector_store(google_api_key=api_key)
-    st.session_state.current_api_key_for_store = api_key # Still useful for general API key tracking
-    st.info("In-memory vector store initialized with Google Gemini embeddings.")
+    st.session_state.current_api_key_for_store = api_key
+    
+    if clear_existing_data:
+        print("--- Clearing existing session data: indexed_documents and messages ---")
+        st.session_state.indexed_documents = []
+        st.session_state.messages = []
+        st.info("In-memory vector store re-initialized. Processed PDFs and chat history for the session cleared.")
+    else:
+        st.info("In-memory vector store initialized for the session.")
+    
+    # Ensure these lists exist if they were cleared or never created
+    if "indexed_documents" not in st.session_state:
+        st.session_state.indexed_documents = []
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
     
 def get_current_retriever(selected_docs=None):
     if "vector_store" not in st.session_state:
-        st.error("Vector store not initialized. Please ensure API key is set and PDFs are processed.")
+        st.error("Vector store not initialized. Please ensure API key is set.")
         return None
     return get_retriever_with_filter(st.session_state.vector_store, selected_docs)
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Chat with Your PDFs (Gemini - In-Memory)", layout="wide")
-st.title("💬 Chat with Your PDFs (Powered by Gemini - In-Memory DB)")
+st.set_page_config(page_title="Chat with Your PDFs by Priyansh Saxena", layout="wide")
+
+st.title("💬 Chat with Your PDFs")
+st.markdown("### _A Project by Priyansh Saxena_") 
+st.markdown("_(Powered by Google Gemini - In-Memory DB)_")
 
 # --- API Key Input & Service Initialization ---
 st.sidebar.header("Configuration")
@@ -65,22 +83,20 @@ if not google_api_key:
     st.stop()
 
 # Initialize services for the session
-# In-memory store is created fresh each time services are initialized
-# This happens on first load or if API key changes
 if "services_initialized" not in st.session_state or \
    st.session_state.get("current_api_key") != google_api_key:
+    print("--- First time service initialization or API key change ---")
     with st.spinner("Initializing services (in-memory)..."):
-        initialize_services(google_api_key) # No force_recreate needed
+        initialize_services(google_api_key, clear_existing_data=True) # Clear data on first init or key change
         st.session_state.services_initialized = True
         st.session_state.current_api_key = google_api_key
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-        # indexed_documents will be populated after PDF processing
-        st.session_state.indexed_documents = [] 
 else:
-    # Ensure these exist if services were already initialized but session state was lost (less common)
+    # This block runs on subsequent reruns if services are already initialized
+    # We should NOT re-initialize the vector store here unless explicitly asked (e.g., by reset button)
+    # Just ensure session state lists exist
     if "messages" not in st.session_state: st.session_state.messages = []
     if "indexed_documents" not in st.session_state: st.session_state.indexed_documents = []
+    print(f"--- Services already initialized. Indexed docs count: {len(st.session_state.get('indexed_documents', []))} ---")
 
 
 # --- PDF Upload and Processing ---
@@ -92,35 +108,37 @@ uploaded_files = st.sidebar.file_uploader(
 
 if st.sidebar.button("Process Uploaded PDFs", key="process_button"):
     if uploaded_files:
-        if not google_api_key:
+        if not google_api_key: # Should be caught by now
             st.error("Please ensure your Google API Key is set.")
         else:
             temp_file_paths = []
             os.makedirs(UPLOAD_DIR, exist_ok=True)
             for uploaded_file in uploaded_files:
-                try:
-                    temp_file_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
-                    with open(temp_file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    temp_file_paths.append(temp_file_path)
-                except Exception as e:
-                    st.error(f"Error saving {uploaded_file.name}: {e}")
+                # Use a more unique temp name to avoid clashes if same filename uploaded in different sessions (though UPLOAD_DIR should be session-specific on cloud)
+                # For local or less isolated envs, this helps.
+                # unique_name = f"{uuid.uuid4()}_{uploaded_file.name}" 
+                # temp_file_path = os.path.join(UPLOAD_DIR, unique_name)
+                temp_file_path = os.path.join(UPLOAD_DIR, uploaded_file.name) # Keeping it simple for now
+                with open(temp_file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                temp_file_paths.append(temp_file_path)
 
             if temp_file_paths:
                 with st.spinner("Processing PDFs for this session..."):
                     try:
-                        # Ensure vector store is initialized (it's in-memory, so should be fresh if not yet done)
-                        if "vector_store" not in st.session_state or \
-                           st.session_state.get("current_api_key_for_store") != google_api_key:
-                             initialize_services(google_api_key)
+                        # With in-memory, vector_store should always be present after initial service init.
+                        # If we want to *replace* existing processed docs, we need to re-init the store.
+                        print("--- Processing PDFs: Re-initializing in-memory vector store for new batch ---")
+                        initialize_services(google_api_key, clear_existing_data=True) # This will create a new empty vector_store and clear indexed_docs
 
                         chunks = process_pdfs(temp_file_paths)
                         if chunks:
                             print(f"--- Attempting to add {len(chunks)} chunks to IN-MEMORY vector store ---")
                             add_documents_to_store(st.session_state.vector_store, chunks)
                             st.success(f"Successfully processed and indexed {len(uploaded_files)} PDF(s) for this session.")
+                            # list_indexed_documents should now reflect only the newly processed docs
                             st.session_state.indexed_documents = list_indexed_documents(st.session_state.vector_store)
-                            st.session_state.messages = [] 
+                            # Messages were already cleared by initialize_services if clear_existing_data=True
                             st.info("Chat history cleared as new documents were processed for this session.")
                         else:
                             st.warning("No text could be extracted or chunked from the PDFs.")
@@ -132,19 +150,21 @@ if st.sidebar.button("Process Uploaded PDFs", key="process_button"):
                         for path in temp_file_paths:
                             if os.path.exists(path):
                                 os.remove(path)
-            st.rerun()
+            st.rerun() # Rerun to update UI, especially the indexed documents list
     else:
         st.sidebar.warning("Please upload PDF files first.")
 
 # --- Display and Select Indexed Documents ---
 st.sidebar.header("Indexed Documents (Current Session)")
-if "indexed_documents" not in st.session_state:
-    st.session_state.indexed_documents = []
+# Ensure indexed_documents list is available in session_state
+current_indexed_docs = st.session_state.get("indexed_documents", [])
+print(f"--- Displaying Indexed Documents. Current list from session_state: {current_indexed_docs} ---")
 
-if st.session_state.indexed_documents:
+
+if current_indexed_docs:
     selected_documents_for_query = st.sidebar.multiselect(
         "Filter Q&A by specific document(s):",
-        options=st.session_state.indexed_documents,
+        options=current_indexed_docs, # Use the variable from session_state
         default=[], 
         key="doc_selector_sidebar_mem"
     )
@@ -155,10 +175,8 @@ else:
 # --- Chat Interface ---
 st.header("Chat about your PDFs (Current Session)")
 st.header("Made by Priyansh Saxena")
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for i, message in enumerate(st.session_state.messages): # Use enumerate for unique keys
+current_messages = st.session_state.get("messages", [])
+for i, message in enumerate(current_messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant" and "sources" in message and message["sources"]:
@@ -167,7 +185,7 @@ for i, message in enumerate(st.session_state.messages): # Use enumerate for uniq
 
 if prompt := st.chat_input("Ask a question about the processed PDFs..."):
     if "vector_store" not in st.session_state:
-        st.error("System not ready. Please ensure API key is set and PDFs are processed before asking questions.")
+        st.error("System not ready. Please ensure API key is set and initialize the session by processing PDFs.")
         st.stop()
     
     if not st.session_state.get("indexed_documents", []): 
@@ -191,7 +209,7 @@ if prompt := st.chat_input("Ask a question about the processed PDFs..."):
                 message_placeholder.markdown(full_response_content)
 
                 if sources_text:
-                    with st.expander("Sources", expanded=True): # Expand for latest
+                    with st.expander("Sources", expanded=True):
                          st.text_area("", value=sources_text, height=100, disabled=True, key=f"sources_current_{len(st.session_state.messages)}")
                 
                 st.session_state.messages.append({
@@ -214,12 +232,11 @@ if prompt := st.chat_input("Ask a question about the processed PDFs..."):
 st.sidebar.markdown("---")
 if st.sidebar.button("⚠️ Reset Session Data (Clears In-Memory DB & Chat)", key="reset_session_button"):
     if google_api_key: 
+        print("--- Reset Session Data button clicked ---")
         with st.spinner("Resetting session data..."):
-            # Re-initialize services, which creates a new in-memory DB
-            initialize_services(google_api_key) 
-            st.session_state.indexed_documents = [] 
-            st.session_state.messages = [] 
+            initialize_services(google_api_key, clear_existing_data=True) 
+            # indexed_documents and messages are cleared within initialize_services now
         st.sidebar.success("Session data (in-memory DB, processed PDFs, chat) has been reset.")
-        st.rerun()
+        st.rerun() # Rerun to reflect the cleared state in the UI immediately
     else:
         st.sidebar.error("Please provide Google API key before resetting.")
