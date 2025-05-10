@@ -7,7 +7,7 @@ def get_qa_chain(google_api_key, retriever):
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash", 
             google_api_key=google_api_key,
-            temperature=0.1,
+            temperature=0.2,
             convert_system_message_to_human=True
         )
     except Exception as e:
