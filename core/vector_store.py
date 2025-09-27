@@ -16,7 +16,7 @@ def get_vector_store(google_api_key): # Removed db_path and force_recreate
     print(f"--- Initializing IN-MEMORY Chroma with collection_name: {COLLECTION_NAME} ---")
     try:
         embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
+            model="models/gemini-embedding-001",
             google_api_key=google_api_key,
         )
         print("--- GoogleGenerativeAIEmbeddings initialized successfully (for in-memory store) ---")
