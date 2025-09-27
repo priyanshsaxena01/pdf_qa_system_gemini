@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 def get_qa_chain(google_api_key, retriever):
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", 
+            model="gemini-2.5-flash-lite", 
             google_api_key=google_api_key,
             temperature=0.2,
             convert_system_message_to_human=True
