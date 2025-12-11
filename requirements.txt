@@ -1,8 +1,9 @@
 streamlit
-langchain
-langchain-community
-langchain-google-genai
+langchain<0.2
+langchain-community<0.2
+langchain-google-genai<0.2
 pymupdf
 chromadb
 google-generativeai
 pysqlite3-binary
+langchain-text-splitters

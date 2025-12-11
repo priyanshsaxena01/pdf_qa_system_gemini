@@ -1,6 +1,6 @@
 import os
 from langchain_community.document_loaders import PyMuPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def process_pdfs(pdf_files_paths):
     all_docs_for_db = []
